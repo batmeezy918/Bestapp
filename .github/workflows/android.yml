@@ -38,11 +38,11 @@ jobs:
       # ============================================================
       # t01 — JDK 17
       # ============================================================
-      - name: Setup JDK 17
+      - name: Setup JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: 17
 
       # ============================================================
       # t02 — ANDROID SDK
@@ -51,7 +51,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       # ============================================================
-      # t03 — HOST GRADLE (BOOTSTRAP)
+      # t03 — HOST GRADLE (BOOTSTRAP ONLY)
       # ============================================================
       - name: Setup host Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -59,24 +59,30 @@ jobs:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
       # ============================================================
-      # t04 — SELF-HEAL PROJECT STRUCTURE (CRITICAL)
+      # t04 — SELF-HEAL PROJECT (ROOT CAUSE FIX)
       # ============================================================
-      - name: Self-heal Gradle + Android structure
+      - name: Self-heal Android project
         shell: bash
         run: |
           set -euo pipefail
 
-          cat > gradle.properties <<'EOF'
-org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8
-android.useAndroidX=true
-android.enableJetifier=true
-EOF
+          # ---------- gradle.properties ----------
+          if [ ! -f gradle.properties ]; then
+            printf '%s\n' \
+              'org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8' \
+              'android.useAndroidX=true' \
+              'android.enableJetifier=true' \
+              > gradle.properties
+          fi
 
-          cat > local.properties <<EOF
-sdk.dir=${ANDROID_HOME}
-EOF
+          # ---------- local.properties ----------
+          if [ ! -f local.properties ]; then
+            printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+          fi
 
-          cat > settings.gradle <<'EOF'
+          # ---------- settings.gradle (PLUGIN FIX) ----------
+          if [ ! -f settings.gradle ]; then
+            cat > settings.gradle <<'EOF'
 pluginManagement {
   repositories {
     google()
@@ -84,29 +90,35 @@ pluginManagement {
     gradlePluginPortal()
   }
 }
-
 dependencyResolutionManagement {
-  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+  repositoriesMode.set(
+    RepositoriesMode.FAIL_ON_PROJECT_REPOS
+  )
   repositories {
     google()
     mavenCentral()
   }
 }
-
 rootProject.name = "Bestapp"
 include(":app")
 EOF
+          fi
 
-          cat > build.gradle <<EOF
+          # ---------- root build.gradle ----------
+          if [ ! -f build.gradle ]; then
+            cat > build.gradle <<EOF
 plugins {
   id "com.android.application" version "${AGP_VERSION}" apply false
   id "org.jetbrains.kotlin.android" version "${KOTLIN_VERSION}" apply false
 }
 EOF
+          fi
 
+          # ---------- app module ----------
           mkdir -p app/src/main
 
-          cat > app/build.gradle <<'EOF'
+          if [ ! -f app/build.gradle ]; then
+            cat > app/build.gradle <<'EOF'
 plugins {
   id "com.android.application"
   id "org.jetbrains.kotlin.android"
@@ -124,35 +136,49 @@ android {
     versionName "1.0"
   }
 
+  buildTypes {
+    debug {
+      debuggable true
+    }
+  }
+
   compileOptions {
     sourceCompatibility JavaVersion.VERSION_17
     targetCompatibility JavaVersion.VERSION_17
   }
 }
-
 dependencies {
   implementation "androidx.core:core-ktx:1.12.0"
 }
 EOF
+          fi
 
-          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          # ---------- AndroidManifest ----------
+          if [ ! -f app/src/main/AndroidManifest.xml ]; then
+            cat > app/src/main/AndroidManifest.xml <<'EOF'
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.bestapp">
-  <application android:label="Bestapp" />
+  <application
+      android:label="Bestapp"
+      android:allowBackup="true" />
 </manifest>
 EOF
+          fi
 
       # ============================================================
-      # t05 — AUTHORITATIVE GRADLE WRAPPER
+      # t05 — GRADLE WRAPPER (AUTHORITATIVE)
       # ============================================================
-      - name: Regenerate Gradle wrapper
+      - name: Generate Gradle wrapper
         shell: bash
         run: |
           set -e
-
+          rm -rf .ci-bootstrap
           mkdir .ci-bootstrap
-          echo 'rootProject.name="bootstrap"' > .ci-bootstrap/settings.gradle
-          echo 'repositories { mavenCentral() }' > .ci-bootstrap/build.gradle
+
+          printf 'rootProject.name="bootstrap"\n' \
+            > .ci-bootstrap/settings.gradle
+          printf 'repositories { mavenCentral() }\n' \
+            > .ci-bootstrap/build.gradle
 
           pushd .ci-bootstrap
           gradle wrapper \
@@ -172,10 +198,12 @@ EOF
       - name: Build debug APK
         shell: bash
         run: |
+          set -e
           ./gradlew assembleDebug --no-daemon --stacktrace
+          ls -l app/build/outputs/apk/debug
 
       # ============================================================
-      # t07 — UPLOAD ARTIFACT
+      # t07 — ARTIFACT UPLOAD
       # ============================================================
       - name: Upload APK
         uses: actions/upload-artifact@v4
