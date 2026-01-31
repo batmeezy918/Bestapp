@@ -1,5 +1,5 @@
 ---
-name: "Android CI (Zeta · Self-Healing · Meta-Verifier · Cloud APK/AAB)"
+name: "Android CI (Self-Healing · Cloud APK)"
 
 'on':
   workflow_dispatch:
@@ -17,8 +17,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
-    # Only needed if you want CI to optionally commit healed files/wrapper on workflow_dispatch
     permissions:
       contents: write
 
@@ -26,411 +24,125 @@ jobs:
       GRADLE_VERSION: "8.5"
       AGP_VERSION: "8.2.2"
       KOTLIN_VERSION: "1.9.22"
-      COMPILE_SDK: "34"
-      MIN_SDK: "21"
-      TARGET_SDK: "34"
 
     steps:
-      # ============================================================
-      # t00 — CHECKOUT
-      # ============================================================
-      - name: t00_checkout
-        uses: actions/checkout@v4
+      # ------------------------------
+      # Checkout
+      # ------------------------------
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: t00_repo_summary
-        shell: bash
-        run: |
-          set -e
-          echo "### Repo Admission" >> "$GITHUB_STEP_SUMMARY"
-          echo "- SHA: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Ref: \`${GITHUB_REF}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          ls -la
-
-      # ============================================================
-      # t01 — JDK 17
-      # ============================================================
-      - name: t01_setup_jdk17
-        uses: actions/setup-java@v4
+      # ------------------------------
+      # Java
+      # ------------------------------
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      - name: t01_verify_java
-        shell: bash
-        run: |
-          set -e
-          java -version
-          echo "### JDK" >> "$GITHUB_STEP_SUMMARY"
-          echo "- JDK 17 OK" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
+      # ------------------------------
+      # Android SDK
+      # ------------------------------
+      - uses: android-actions/setup-android@v3
 
-      # ============================================================
-      # t02 — ANDROID SDK
-      # ============================================================
-      - name: t02_setup_android_sdk
-        uses: android-actions/setup-android@v3
-
-      - name: t02_verify_android_sdk
-        shell: bash
-        run: |
-          set -e
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          test -d "$ANDROID_HOME"
-          echo "### Android SDK" >> "$GITHUB_STEP_SUMMARY"
-          echo "- ANDROID_HOME exists" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-      # ============================================================
-      # t03 — HOST GRADLE (bootstrap only)
-      # ============================================================
-      - name: t03_setup_host_gradle
-        uses: gradle/actions/setup-gradle@v4
+      # ------------------------------
+      # Host Gradle
+      # ------------------------------
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: t03_verify_host_gradle
-        shell: bash
-        run: |
-          set -e
-          gradle --version
-          echo "### Host Gradle" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Gradle ${{ env.GRADLE_VERSION }} OK" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-      # ============================================================
-      # t04 — SELF-HEAL PROJECT STRUCTURE (only if missing)
-      # ============================================================
-      - name: t04_self_heal_project_if_missing
+      # ------------------------------
+      # Self-heal project files (NO heredocs)
+      # ------------------------------
+      - name: Self-heal project
         shell: bash
         run: |
           set -euo pipefail
 
-          # gradle.properties (create only if missing)
-          if [ ! -f gradle.properties ]; then
-            cat > gradle.properties <<'EOF'
-org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8
-android.useAndroidX=true
-android.enableJetifier=true
-EOF
-          fi
+          [ -f gradle.properties ] || printf "%s\n" \
+            "org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8" \
+            "android.useAndroidX=true" \
+            "android.enableJetifier=true" \
+            > gradle.properties
 
-          # local.properties (create only if missing)
-          if [ ! -f local.properties ]; then
-            cat > local.properties <<EOF
-sdk.dir=${ANDROID_HOME}
-EOF
-          fi
+          [ -f local.properties ] || printf "sdk.dir=%s\n" "$ANDROID_HOME" > local.properties
 
-          # settings.gradle (create only if missing)
-          if [ ! -f settings.gradle ]; then
-            cat > settings.gradle <<'EOF'
-pluginManagement {
-  repositories {
-    google()
-    mavenCentral()
-    gradlePluginPortal()
-  }
-}
-dependencyResolutionManagement {
-  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-  repositories {
-    google()
-    mavenCentral()
-  }
-}
-rootProject.name = "Bestapp"
-include(":app")
-EOF
-          fi
+          [ -f settings.gradle ] || printf "%s\n" \
+            "pluginManagement {" \
+            "  repositories { google(); mavenCentral(); gradlePluginPortal() }" \
+            "}" \
+            "dependencyResolutionManagement {" \
+            "  repositories { google(); mavenCentral() }" \
+            "}" \
+            "rootProject.name = \"Bestapp\"" \
+            "include(\":app\")" \
+            > settings.gradle
 
-          # root build.gradle (create if missing; otherwise ensure plugin versions exist)
-          if [ ! -f build.gradle ]; then
-            cat > build.gradle <<EOF
-plugins {
-  id "com.android.application" version "${AGP_VERSION}" apply false
-  id "org.jetbrains.kotlin.android" version "${KOTLIN_VERSION}" apply false
-}
-EOF
-          else
-            if ! grep -q 'id "com.android.application" version' build.gradle; then
-              cat >> build.gradle <<EOF
+          [ -f build.gradle ] || printf "%s\n" \
+            "plugins {" \
+            "  id \"com.android.application\" version \"${AGP_VERSION}\" apply false" \
+            "  id \"org.jetbrains.kotlin.android\" version \"${KOTLIN_VERSION}\" apply false" \
+            "}" \
+            > build.gradle
 
-plugins {
-  id "com.android.application" version "${AGP_VERSION}" apply false
-  id "org.jetbrains.kotlin.android" version "${KOTLIN_VERSION}" apply false
-}
-EOF
-            fi
-          fi
-
-          # app/build.gradle (create only if missing)
           mkdir -p app/src/main
-          if [ ! -f app/build.gradle ]; then
-            cat > app/build.gradle <<EOF
-plugins {
-  id "com.android.application"
-  id "org.jetbrains.kotlin.android"
-}
 
-android {
-  namespace "com.example.bestapp"
-  compileSdk ${COMPILE_SDK}
+          [ -f app/build.gradle ] || printf "%s\n" \
+            "plugins { id \"com.android.application\"; id \"org.jetbrains.kotlin.android\" }" \
+            "android {" \
+            "  namespace \"com.example.bestapp\"" \
+            "  compileSdk 34" \
+            "  defaultConfig {" \
+            "    applicationId \"com.example.bestapp\"" \
+            "    minSdk 21" \
+            "    targetSdk 34" \
+            "    versionCode 1" \
+            "    versionName \"1.0\"" \
+            "  }" \
+            "  compileOptions {" \
+            "    sourceCompatibility JavaVersion.VERSION_17" \
+            "    targetCompatibility JavaVersion.VERSION_17" \
+            "  }" \
+            "}" \
+            > app/build.gradle
 
-  defaultConfig {
-    applicationId "com.example.bestapp"
-    minSdk ${MIN_SDK}
-    targetSdk ${TARGET_SDK}
-    versionCode 1
-    versionName "1.0"
-  }
+          [ -f app/src/main/AndroidManifest.xml ] || printf "%s\n" \
+            "<manifest package=\"com.example.bestapp\"/>" \
+            > app/src/main/AndroidManifest.xml
 
-  signingConfigs {
-    release {
-      if (System.getenv("ANDROID_KEYSTORE_PATH") != null) {
-        storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))
-        storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
-        keyAlias System.getenv("ANDROID_KEY_ALIAS")
-        keyPassword System.getenv("ANDROID_KEY_PASSWORD")
-      }
-    }
-  }
-
-  buildTypes {
-    debug {
-      debuggable true
-    }
-    release {
-      signingConfig signingConfigs.release
-      minifyEnabled false
-    }
-  }
-
-  compileOptions {
-    sourceCompatibility JavaVersion.VERSION_17
-    targetCompatibility JavaVersion.VERSION_17
-  }
-  kotlinOptions {
-    jvmTarget = "17"
-  }
-}
-
-dependencies {
-  implementation "androidx.core:core-ktx:1.12.0"
-  implementation "androidx.appcompat:appcompat:1.6.1"
-  implementation "com.google.android.material:material:1.11.0"
-}
-EOF
-          fi
-
-          # Minimal manifest (create only if missing)
-          if [ ! -f app/src/main/AndroidManifest.xml ]; then
-            cat > app/src/main/AndroidManifest.xml <<'EOF'
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.bestapp">
-  <application
-      android:label="Bestapp"
-      android:allowBackup="true"
-      android:supportsRtl="true" />
-</manifest>
-EOF
-          fi
-
-          echo "### Self-heal" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Ensured minimal Gradle/Android structure exists (without stomping existing files)" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: t04_verify_structure
+      # ------------------------------
+      # Generate wrapper safely
+      # ------------------------------
+      - name: Generate Gradle wrapper
         shell: bash
         run: |
-          set -e
-          test -f gradle.properties
-          test -f local.properties
-          test -f settings.gradle
-          test -f build.gradle
-          test -f app/build.gradle
-          test -f app/src/main/AndroidManifest.xml
-          grep -q "google()" settings.gradle
-          grep -q 'id "com.android.application" version' build.gradle
-          echo "### Structure verification" >> "$GITHUB_STEP_SUMMARY"
-          echo "- PASS" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-      # Optional: commit healed files only on manual dispatch (avoid push loops)
-      - name: t04_commit_healed_files_if_manual
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        shell: bash
-        run: |
-          set -e
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add gradle.properties local.properties settings.gradle build.gradle app/build.gradle app/src/main/AndroidManifest.xml
-          if git diff --cached --quiet; then
-            echo "[INFO] No healed changes"
-          else
-            git commit -m "CI: heal minimal Android project structure"
-            git push
-          fi
-
-      # ============================================================
-      # t05 — AUTHORITATIVE WRAPPER (isolated generation)
-      # ============================================================
-      - name: t05_generate_wrapper_isolated
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          rm -rf .ci-bootstrap
-          mkdir -p .ci-bootstrap
-
-          cat > .ci-bootstrap/settings.gradle <<'EOF'
-rootProject.name = "bootstrap"
-EOF
-          cat > .ci-bootstrap/build.gradle <<'EOF'
-repositories { mavenCentral() }
-EOF
-
-          pushd .ci-bootstrap >/dev/null
+          mkdir bootstrap
+          printf "repositories { mavenCentral() }\n" > bootstrap/build.gradle
+          printf "rootProject.name=\"bootstrap\"\n" > bootstrap/settings.gradle
+          cd bootstrap
           gradle wrapper --gradle-version "${GRADLE_VERSION}" --distribution-type bin
-          popd >/dev/null
-
-          mv .ci-bootstrap/gradlew ./gradlew
-          rm -rf ./gradle
-          mv .ci-bootstrap/gradle ./gradle
-          rm -rf .ci-bootstrap
-
+          cd ..
+          mv bootstrap/gradlew ./gradlew
+          rm -rf gradle
+          mv bootstrap/gradle ./gradle
           chmod +x gradlew
-          test -f gradle/wrapper/gradle-wrapper.jar
-          test -f gradle/wrapper/gradle-wrapper.properties
+          rm -rf bootstrap
 
-      - name: t05_verify_wrapper_sanity
+      # ------------------------------
+      # Build APK
+      # ------------------------------
+      - name: Build APK
         shell: bash
         run: |
-          set -e
-          grep -q "gradle-${GRADLE_VERSION}-bin.zip" gradle/wrapper/gradle-wrapper.properties
-          file gradle/wrapper/gradle-wrapper.jar | grep -Ei "Zip archive|Java archive" >/dev/null
-          SIZE=$(stat -c%s gradle/wrapper/gradle-wrapper.jar || stat -f%z gradle/wrapper/gradle-wrapper.jar)
-          if [ "$SIZE" -lt 51200 ]; then
-            echo "[FAIL] Wrapper jar too small (${SIZE} bytes)"
-            exit 1
-          fi
-          echo "### Wrapper" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Generated + sanity checked (jar size: ${SIZE} bytes)" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: t05_commit_wrapper_if_manual
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        shell: bash
-        run: |
-          set -e
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add gradlew gradle/wrapper
-          if git diff --cached --quiet; then
-            echo "[INFO] No wrapper changes"
-          else
-            git commit -m "CI: refresh authoritative Gradle wrapper"
-            git push
-          fi
-
-      # ============================================================
-      # t06 — OPTIONAL KEYSTORE (release signing)
-      # ============================================================
-      - name: t06_setup_keystore_if_present
-        shell: bash
-        run: |
-          set -e
-          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
-            echo "ANDROID_KEYSTORE_PATH=$PWD/keystore.jks" >> "$GITHUB_ENV"
-            echo "### Signing" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Keystore injected from secrets" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "### Signing" >> "$GITHUB_STEP_SUMMARY"
-            echo "- No keystore secret found (release may be unsigned / debug-sign only)" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      # ============================================================
-      # t07 — BUILD (log capture)
-      # ============================================================
-      - name: t07_build_all
-        id: build_all
-        shell: bash
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          bash ./gradlew --version --no-daemon
-          bash ./gradlew assembleDebug assembleRelease bundleRelease --no-daemon --stacktrace | tee build.log
-
-      # ============================================================
-      # t08 — FAILURE CLASSIFIER JSON (LLM input)
-      # ============================================================
-      - name: t08_failure_classifier_json
-        if: steps.build_all.outcome == 'failure'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # Grab only high-signal lines to avoid huge JSON
-          PATTERNS=$(grep -E \
-            "Plugin .* not found|SDK location not found|Could not resolve|Could not download|corrupt|No matching variant|DexArchive|AAPT2|Manifest merger failed|INSTALL_FAILED|Execution failed" \
-            build.log | head -n 50 | sed 's/"/\\"/g' | awk '{print "\"" $0 "\""}' | paste -sd, -)
-
-          cat > failure_report.json <<EOF
-{
-  "status": "failure",
-  "goal": "cloud-only Android build (APK/AAB) with self-healing wrapper + minimal structure",
-  "toolchain": {
-    "gradle": "${GRADLE_VERSION}",
-    "agp": "${AGP_VERSION}",
-    "kotlin": "${KOTLIN_VERSION}",
-    "jdk": "17"
-  },
-  "detected_patterns": [${PATTERNS}],
-  "recommended_next_actions": [
-    "Inspect build.log for the first error (root cause)",
-    "If plugin not found: verify settings.gradle pluginManagement includes google() + gradlePluginPortal()",
-    "If SDK not found: verify local.properties sdk.dir and ANDROID_HOME",
-    "If dependency resolve fails: network/repo outage or version mismatch; retry or pin versions"
-  ]
-}
-EOF
-
-          echo "### Build Result" >> "$GITHUB_STEP_SUMMARY"
-          echo "- ❌ Build failed (failure_report.json generated)" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-          exit 1
-
-      # ============================================================
-      # t09 — META VERIFIER (only when build succeeded)
-      # ============================================================
-      - name: t09_meta_verifier
-        if: steps.build_all.outcome == 'success'
-        shell: bash
-        run: |
-          set -e
-          test -d app/build/outputs/apk
-          test -d app/build/outputs/bundle
-          echo "### Meta-Verification" >> "$GITHUB_STEP_SUMMARY"
-          echo "- ✅ Outputs exist (apk + bundle directories present)" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-      # ============================================================
-      # t10 — UPLOAD ARTIFACTS (always)
-      # ============================================================
-      - name: t10_upload_artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+      # ------------------------------
+      # Upload artifacts
+      # ------------------------------
+      - uses: actions/upload-artifact@v4
         with:
-          name: android-artifacts
-          path: |
-            app/build/outputs/apk/**
-            app/build/outputs/bundle/**
-            build.log
-            failure_report.json
-          if-no-files-found: warn
+          name: apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
