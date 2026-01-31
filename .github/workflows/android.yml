@@ -8,8 +8,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Verify repo contents
+        run: |
+          pwd
+          ls -la
+          test -f gradlew || (echo "gradlew missing in workspace" && exit 1)
 
       - name: Set up JDK
         uses: actions/setup-java@v4
