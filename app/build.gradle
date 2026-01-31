@@ -1,16 +1,25 @@
-apply plugin: 'com.android.application'
+plugins {
+    id 'com.android.application'
+}
 
 android {
-    namespace "com.example.app"
+    namespace "com.example.bestapp"
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.app"
-        minSdk 21
+        applicationId "com.example.bestapp"
+        minSdk 24
         targetSdk 34
         versionCode 1
         versionName "1.0"
     }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
 }
 
-dependencies {}
+dependencies {
+}
