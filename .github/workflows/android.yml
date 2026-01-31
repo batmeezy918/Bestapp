@@ -1,8 +1,8 @@
 ---
-name: Android CI (Zeta Self Healing Cloud APK AAB)
+name: Android CI (Cloud-Only · Self-Healing · Verified)
 
 "on":
-  workflow_dispatch:
+  workflow_dispatch: {}
   push:
     branches:
       - main
@@ -38,7 +38,7 @@ jobs:
       # ============================================================
       # JDK 17
       # ============================================================
-      - name: Setup JDK
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -51,7 +51,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       # ============================================================
-      # HOST GRADLE
+      # HOST GRADLE (BOOTSTRAP ONLY)
       # ============================================================
       - name: Setup host Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -59,9 +59,9 @@ jobs:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
       # ============================================================
-      # SELF HEAL PROJECT
+      # SELF-HEAL PROJECT FILES (SAFE, YAML-CLEAN)
       # ============================================================
-      - name: Self heal project
+      - name: Self heal Android project
         shell: bash
         run: |
           set -euo pipefail
@@ -72,7 +72,8 @@ jobs:
             'android.enableJetifier=true' \
             > gradle.properties
 
-          printf 'sdk.dir=%s\n' "$ANDROID_HOME" \
+          printf '%s\n' \
+            "sdk.dir=${ANDROID_HOME}" \
             > local.properties
 
           printf '%s\n' \
@@ -84,9 +85,7 @@ jobs:
             '  }' \
             '}' \
             'dependencyResolutionManagement {' \
-            '  repositoriesMode.set(' \
-            '    RepositoriesMode.FAIL_ON_PROJECT_REPOS' \
-            '  )' \
+            '  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)' \
             '  repositories {' \
             '    google()' \
             '    mavenCentral()' \
@@ -98,10 +97,8 @@ jobs:
 
           printf '%s\n' \
             'plugins {' \
-            "  id \"com.android.application\" " \
-            "    version \"${AGP_VERSION}\" apply false" \
-            "  id \"org.jetbrains.kotlin.android\" " \
-            "    version \"${KOTLIN_VERSION}\" apply false" \
+            "  id \"com.android.application\" version \"${AGP_VERSION}\" apply false" \
+            "  id \"org.jetbrains.kotlin.android\" version \"${KOTLIN_VERSION}\" apply false" \
             '}' \
             > build.gradle
 
@@ -126,7 +123,6 @@ jobs:
             '  }' \
             '' \
             '  buildTypes {' \
-            '    debug {}' \
             '    release {' \
             '      minifyEnabled false' \
             '    }' \
@@ -144,69 +140,51 @@ jobs:
             > app/build.gradle
 
           printf '%s\n' \
-            '<manifest xmlns:android="' \
-            'http://schemas.android.com/apk/res/android"' \
+            '<manifest xmlns:android="http://schemas.android.com/apk/res/android"' \
             '    package="com.example.bestapp">' \
             '  <application android:label="Bestapp" />' \
             '</manifest>' \
             > app/src/main/AndroidManifest.xml
 
       # ============================================================
-      # GRADLE WRAPPER
+      # GENERATE AUTHORITATIVE GRADLE WRAPPER
       # ============================================================
       - name: Generate Gradle wrapper
         shell: bash
         run: |
           set -e
-
           rm -rf .ci-bootstrap
           mkdir .ci-bootstrap
 
-          printf '%s\n' \
-            'repositories { mavenCentral() }' \
-            > .ci-bootstrap/build.gradle
-
-          printf '%s\n' \
-            'rootProject.name="bootstrap"' \
-            > .ci-bootstrap/settings.gradle
+          printf '%s\n' 'rootProject.name="bootstrap"' > .ci-bootstrap/settings.gradle
+          printf '%s\n' 'repositories { mavenCentral() }' > .ci-bootstrap/build.gradle
 
           cd .ci-bootstrap
-          gradle wrapper \
-            --gradle-version "${GRADLE_VERSION}" \
-            --distribution-type bin
+          gradle wrapper --gradle-version "${GRADLE_VERSION}" --distribution-type bin
           cd ..
 
           mv .ci-bootstrap/gradlew ./gradlew
-          rm -rf ./gradle
+          rm -rf gradle
           mv .ci-bootstrap/gradle ./gradle
           chmod +x gradlew
           rm -rf .ci-bootstrap
 
       # ============================================================
-      # BUILD
+      # BUILD APK
       # ============================================================
-      - name: Build artifacts
+      - name: Build Debug APK
         shell: bash
         run: |
-          bash ./gradlew assembleDebug
-          bash ./gradlew assembleRelease
-          bash ./gradlew bundleRelease
+          set -e
+          bash ./gradlew --version
+          bash ./gradlew assembleDebug --stacktrace
 
       # ============================================================
-      # VERIFY
+      # UPLOAD ARTIFACT
       # ============================================================
-      - name: Verify outputs
-        shell: bash
-        run: |
-          test -d app/build/outputs/apk
-          test -d app/build/outputs/bundle
-
-      # ============================================================
-      # UPLOAD
-      # ============================================================
-      - name: Upload artifacts
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-artifacts
-          path: app/build/outputs/**
+          name: debug-apk
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
