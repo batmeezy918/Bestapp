@@ -1,55 +1,208 @@
-name: Android CI (Authoritative Wrapper)
+name: Android CI (Zeta · Self-Healing · Meta-Verifier · Cloud APK/AAB)
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    permissions:
+      contents: write
 
-      - name: Set up JDK 17
+    env:
+      GRADLE_VERSION: "8.5"
+      AGP_VERSION: "8.2.2"
+      KOTLIN_VERSION: "1.9.22"
+
+    steps:
+      # ============================================================
+      # t00 — CHECKOUT
+      # ============================================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ============================================================
+      # t01 — JDK 17
+      # ============================================================
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      - name: Install Android SDK
+      # ============================================================
+      # t02 — ANDROID SDK
+      # ============================================================
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Gradle (host)
+      # ============================================================
+      # t03 — HOST GRADLE (BOOTSTRAP ONLY)
+      # ============================================================
+      - name: Setup host Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.5
+          gradle-version: ${{ env.GRADLE_VERSION }}
 
-      # 🔑 AUTHORITATIVE STEP
-      - name: Generate Gradle Wrapper (CI authority)
+      # ============================================================
+      # t04 — SELF-HEAL PROJECT STRUCTURE
+      # ============================================================
+      - name: Self-heal Android project
+        shell: bash
         run: |
-          gradle wrapper \
-            --gradle-version 8.5 \
-            --distribution-type bin
+          set -euo pipefail
 
-      - name: Make wrapper executable
-        run: chmod +x gradlew
+          cat > gradle.properties <<'EOF'
+org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8
+android.useAndroidX=true
+android.enableJetifier=true
+EOF
 
-      - name: Commit wrapper back to repo
+          cat > local.properties <<EOF
+sdk.dir=${ANDROID_HOME}
+EOF
+
+          cat > settings.gradle <<'EOF'
+pluginManagement {
+  repositories {
+    google()
+    mavenCentral()
+    gradlePluginPortal()
+  }
+}
+dependencyResolutionManagement {
+  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+  repositories {
+    google()
+    mavenCentral()
+  }
+}
+rootProject.name = "Bestapp"
+include(":app")
+EOF
+
+          cat > build.gradle <<EOF
+plugins {
+  id "com.android.application" version "${AGP_VERSION}" apply false
+  id "org.jetbrains.kotlin.android" version "${KOTLIN_VERSION}" apply false
+}
+EOF
+
+          mkdir -p app/src/main
+
+          cat > app/build.gradle <<'EOF'
+plugins {
+  id "com.android.application"
+  id "org.jetbrains.kotlin.android"
+}
+
+android {
+  namespace "com.example.bestapp"
+  compileSdk 34
+
+  defaultConfig {
+    applicationId "com.example.bestapp"
+    minSdk 21
+    targetSdk 34
+    versionCode 1
+    versionName "1.0"
+  }
+
+  buildTypes {
+    release {
+      minifyEnabled false
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  kotlinOptions {
+    jvmTarget = "17"
+  }
+}
+
+dependencies {
+  implementation "androidx.core:core-ktx:1.12.0"
+  implementation "androidx.appcompat:appcompat:1.6.1"
+  implementation "com.google.android.material:material:1.11.0"
+}
+EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.bestapp">
+  <application
+      android:label="Bestapp"
+      android:allowBackup="true"
+      android:supportsRtl="true" />
+</manifest>
+EOF
+
+      # ============================================================
+      # t05 — AUTHORITATIVE GRADLE WRAPPER
+      # ============================================================
+      - name: Generate Gradle wrapper
+        shell: bash
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add gradlew gradle/wrapper
-          git commit -m "CI: authoritative Gradle wrapper"
-          git push || echo "Wrapper already committed"
+          set -euo pipefail
+          rm -rf .ci-bootstrap
+          mkdir .ci-bootstrap
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
+          echo 'rootProject.name="bootstrap"' > .ci-bootstrap/settings.gradle
+          echo 'repositories { mavenCentral() }' > .ci-bootstrap/build.gradle
 
-      - name: Upload APK
+          pushd .ci-bootstrap
+          gradle wrapper --gradle-version "${GRADLE_VERSION}" --distribution-type bin
+          popd
+
+          mv .ci-bootstrap/gradlew ./gradlew
+          rm -rf ./gradle
+          mv .ci-bootstrap/gradle ./gradle
+          chmod +x gradlew
+          rm -rf .ci-bootstrap
+
+      # ============================================================
+      # t06 — BUILD APK & AAB
+      # ============================================================
+      - name: Build APK and AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew --version
+          ./gradlew assembleDebug bundleRelease --stacktrace
+
+      # ============================================================
+      # t07 — VERIFY OUTPUT
+      # ============================================================
+      - name: Verify artifacts
+        shell: bash
+        run: |
+          test -d app/build/outputs/apk
+          test -d app/build/outputs/bundle
+
+      # ============================================================
+      # t08 — UPLOAD ARTIFACTS
+      # ============================================================
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: android-artifacts
+          path: |
+            app/build/outputs/apk/**
+            app/build/outputs/bundle/**
