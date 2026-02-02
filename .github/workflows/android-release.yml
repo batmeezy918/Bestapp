@@ -1,0 +1,140 @@
+---
+name: Android Release (Deterministic)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    env:
+      GRADLE_VERSION: "8.5"
+      AGP_VERSION: "8.2.2"
+      KOTLIN_VERSION: "1.9.22"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Create project files
+        shell: bash
+        run: |
+          set -e
+
+          echo "org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8" > gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+          printf '%s\n' \
+          'pluginManagement {' \
+          '  repositories {' \
+          '    google()' \
+          '    mavenCentral()' \
+          '    gradlePluginPortal()' \
+          '  }' \
+          '}' \
+          '' \
+          'dependencyResolutionManagement {' \
+          '  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)' \
+          '  repositories {' \
+          '    google()' \
+          '    mavenCentral()' \
+          '  }' \
+          '}' \
+          '' \
+          'rootProject.name = "Bestapp"' \
+          'include(":app")' \
+          > settings.gradle
+
+          printf '%s\n' \
+          'plugins {' \
+          "  id \"com.android.application\" version \"${AGP_VERSION}\" apply false" \
+          "  id \"org.jetbrains.kotlin.android\" version \"${KOTLIN_VERSION}\" apply false" \
+          '}' \
+          > build.gradle
+
+          mkdir -p app/src/main
+
+          printf '%s\n' \
+          'plugins {' \
+          '  id "com.android.application"' \
+          '  id "org.jetbrains.kotlin.android"' \
+          '}' \
+          '' \
+          'android {' \
+          '  namespace "com.example.bestapp"' \
+          '  compileSdk 34' \
+          '' \
+          '  defaultConfig {' \
+          '    applicationId "com.example.bestapp"' \
+          '    minSdk 24' \
+          '    targetSdk 34' \
+          '    versionCode 1' \
+          '    versionName "1.0"' \
+          '  }' \
+          '' \
+          '  buildTypes {' \
+          '    release {' \
+          '      minifyEnabled false' \
+          '    }' \
+          '  }' \
+          '' \
+          '  compileOptions {' \
+          '    sourceCompatibility JavaVersion.VERSION_17' \
+          '    targetCompatibility JavaVersion.VERSION_17' \
+          '  }' \
+          '}' \
+          '' \
+          'dependencies {' \
+          '  implementation "androidx.core:core-ktx:1.12.0"' \
+          '}' \
+          > app/build.gradle
+
+          printf '%s\n' \
+          '<manifest xmlns:android="http://schemas.android.com/apk/res/android"' \
+          '    package="com.example.bestapp">' \
+          '  <application android:label="Bestapp" />' \
+          '</manifest>' \
+          > app/src/main/AndroidManifest.xml
+
+      - name: Build Release
+        shell: bash
+        run: |
+          ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
