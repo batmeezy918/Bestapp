@@ -1,28 +1,26 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sensor Control Panel</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8"/>
+  <title>APK Factory</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-  <h1>Sensor Control Panel</h1>
+<h1>APK Factory Control</h1>
 
-  <div class="row">
-    <button id="start">Start Sensors</button>
-    <button id="stop">Stop Sensors</button>
-    <button id="clear">Clear Log</button>
-  </div>
+<button id="start">Start Session</button>
 
-  <pre id="log"></pre>
+<select id="buildType">
+  <option value="release">Release</option>
+</select>
 
-  <script src="app.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js');
-    }
-  </script>
+<input id="minSdk" value="24"/>
+
+<button id="build">Build APK</button>
+
+<pre id="log"></pre>
+
+<script src="app.js"></script>
 </body>
 </html>
