@@ -1,0 +1,33 @@
+name: Build App
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; \
+          elif [ -f package.json ]; then npm install; \
+          else echo "No package.json found" && exit 1; fi
+
+      - name: Build
+        run: |
+          if npm run | grep -q " build"; then npm run build; \
+          else echo "No build script found in package.json" && exit 1; fi
