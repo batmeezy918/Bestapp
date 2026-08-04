@@ -21,6 +21,9 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Verify Repository
         run: python tools/cvr.py verify-system
 
@@ -47,15 +50,35 @@ jobs:
       - name: Consistency Check
         run: python tools/cvr.py consistency-check
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Generate Gradle Wrapper
+        run: |
+          if [ ! -f ./gradlew ]; then
+            gradle wrapper --gradle-version 8.5
+            chmod +x gradlew
+          fi
+
+      - name: Build Release APK (android.package)
+        run: |
+          ./gradlew assembleRelease --no-daemon
+          mkdir -p out/apk
+          cp app/build/outputs/apk/release/*.apk out/apk/ 2>/dev/null || true
+          ls -la out/apk/ || ls -la app/build/outputs/apk/release/ || true
+
       - name: Emit Repository Certificate
         run: python tools/cvr.py emit-certificate
 
-      - name: Upload Certificate + Witnesses
+      - name: Upload APK + Certificate + Witnesses
         uses: actions/upload-artifact@v4
         with:
           name: cvr-certified-${{ github.sha }}
           path: |
+            out/
+            app/build/outputs/apk/release/
             certificates/
             witness/
             replay/
             build/build_dag.json
+          if-no-files-found: warn
