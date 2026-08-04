@@ -1,0 +1,31 @@
+name: CVR Deterministic Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write cvr-build placeholder
+        run: |
+          mkdir -p .github/workflows
+          cat > .github/workflows/cvr-build.yml <<'EOF'
+          name: CVR Deterministic Build
+          on:
+            push:
+              branches: [main]
+            workflow_dispatch:
+          jobs:
+            build:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - name: CVR bootstrap
+                  run: echo "Bootstrap workflow placeholder"
+          EOF
+          echo "Placeholder workflow already written in repo."
