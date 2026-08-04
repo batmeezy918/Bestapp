@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cvr.omega/schemas/mir.schema.json",
+  "title": "CVR Multi-View Intermediate Representation (MIR) Schema",
+  "description": "Canonical object model for the Constitutional Verified Runtime. Every later component (APDU parser, TLV parser, Virtual Card, Virtual Terminal, EMV state machine, Build DAG, witnesses, replay, Android UI) must conform to this schema.",
+  "type": "object",
+  "required": ["mir_id", "version", "kernel_hash", "views", "nodes", "edges"],
+  "additionalProperties": false,
+  "properties": {
+    "mir_id": { "type": "string" },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "kernel_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "constitution_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "runtime_profile": { "type": "string", "enum": ["emv-iso7816", "iso7816", "generic"] },
+    "views": {
+      "type": "object",
+      "required": ["logic", "runtime", "verification", "build", "documentation", "operations"],
+      "additionalProperties": { "$ref": "#/$defs/View" },
+      "properties": {
+        "logic": { "$ref": "#/$defs/View" },
+        "runtime": { "$ref": "#/$defs/View" },
+        "verification": { "$ref": "#/$defs/View" },
+        "build": { "$ref": "#/$defs/View" },
+        "documentation": { "$ref": "#/$defs/View" },
+        "operations": { "$ref": "#/$defs/View" },
+        "proof": { "$ref": "#/$defs/View" }
+      }
+    },
+    "nodes": { "type": "array", "items": { "$ref": "#/$defs/MirNode" } },
+    "edges": { "type": "array", "items": { "$ref": "#/$defs/MirEdge" } },
+    "covers": { "type": "array", "items": { "$ref": "#/$defs/Cover" } },
+    "emv": {
+      "type": "object",
+      "properties": {
+        "apdu_commands": { "type": "array", "items": { "$ref": "#/$defs/ApduCommand" } },
+        "tlv_tags": { "type": "array", "items": { "$ref": "#/$defs/TlvTag" } },
+        "states": { "type": "array", "items": { "$ref": "#/$defs/EmvState" } },
+        "transactions": { "type": "array", "items": { "$ref": "#/$defs/EmvTransaction" } }
+      }
+    }
+  },
+  "$defs": {
+    "View": {
+      "type": "object",
+      "required": ["name", "projection", "nodes"],
+      "properties": {
+        "name": { "type": "string" },
+        "projection": { "type": "string" },
+        "nodes": { "type": "array", "items": { "type": "string" } },
+        "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+      }
+    },
+    "MirNode": {
+      "type": "object",
+      "required": ["id", "kind", "view", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": ["operator", "type", "invariant", "admissibility", "state", "transition", "parser", "artifact", "test", "proof", "witness", "apdu", "tlv", "card", "terminal", "transaction"]
+        },
+        "view": { "type": "string" },
+        "label": { "type": "string" },
+        "description": { "type": "string" },
+        "source_constitution": { "type": "string" },
+        "inputs": { "type": "array", "items": { "type": "string" } },
+        "outputs": { "type": "array", "items": { "type": "string" } },
+        "contracts": { "type": "array", "items": { "type": "string" } },
+        "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "emv": { "type": "object" }
+      }
+    },
+    "MirEdge": {
+      "type": "object",
+      "required": ["from", "to", "relation"],
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "relation": {
+          "type": "string",
+          "enum": ["depends_on", "projects_to", "transforms", "implements", "tests", "witnesses", "replays", "proves", "transitions_to"]
+        },
+        "label": { "type": "string" }
+      }
+    },
+    "Cover": {
+      "type": "object",
+      "required": ["id", "opens"],
+      "properties": {
+        "id": { "type": "string" },
+        "opens": { "type": "array", "items": { "type": "string" } },
+        "purpose": { "type": "string" }
+      }
+    },
+    "ApduCommand": {
+      "type": "object",
+      "required": ["name", "cla", "ins"],
+      "properties": {
+        "name": { "type": "string" },
+        "cla": { "type": "string", "pattern": "^[0-9A-Fa-f]{2}$" },
+        "ins": { "type": "string", "pattern": "^[0-9A-Fa-f]{2}$" },
+        "p1": { "type": "string" },
+        "p2": { "type": "string" },
+        "lc": { "type": "string" },
+        "data": { "type": "string" },
+        "le": { "type": "string" },
+        "description": { "type": "string" },
+        "emv_stage": {
+          "type": "string",
+          "enum": ["idle", "select", "gpo", "read_record", "generate_ac", "external_authenticate", "get_data", "put_data", "other"]
+        }
+      }
+    },
+    "TlvTag": {
+      "type": "object",
+      "required": ["tag", "name"],
+      "properties": {
+        "tag": { "type": "string", "pattern": "^[0-9A-Fa-f]{2,6}$" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "format": { "type": "string", "enum": ["b", "n", "an", "ans", "cn", "var"] },
+        "template": { "type": "boolean" },
+        "emv_book": { "type": "string" }
+      }
+    },
+    "EmvState": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "allowed_commands": { "type": "array", "items": { "type": "string" } },
+        "next_states": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "EmvTransaction": {
+      "type": "object",
+      "required": ["id", "name", "steps"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["state", "command"],
+            "properties": {
+              "state": { "type": "string" },
+              "command": { "type": "string" },
+              "expected_sw": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
