@@ -1,0 +1,78 @@
+{
+  "version": "1.0.0",
+  "dag_id": "CVR-EMV-MVP",
+  "kernel_hash": "sha256:KERNEL_PLACEHOLDER",
+  "nodes": [
+    {
+      "id": "validate.system",
+      "transformation": "cvr.verify-system",
+      "version": "1.0.0",
+      "type": "verify",
+      "stage": "verify",
+      "inputs": [],
+      "outputs": [{"name": "report", "kind": "file", "required": true}],
+      "pure": true,
+      "deterministic": true,
+      "affects_opens": ["verification"],
+      "reads_opens": ["constitution", "kernel", "mir"],
+      "witness": {"required": true, "format": "cvr-witness-v1"},
+      "depends_on": [],
+      "priority": 10,
+      "label": "Verify System"
+    },
+    {
+      "id": "runtime.emv_kernel",
+      "transformation": "emv.kernel.link",
+      "version": "1.0.0",
+      "type": "compile",
+      "stage": "compile",
+      "inputs": [{"name": "runtime", "kind": "directory", "required": true}],
+      "outputs": [{"name": "emv_runtime", "kind": "artifact", "required": true}],
+      "pure": true,
+      "deterministic": true,
+      "affects_opens": ["runtime"],
+      "reads_opens": ["runtime", "logic"],
+      "witness": {"required": true, "format": "cvr-witness-v1"},
+      "depends_on": ["validate.system"],
+      "priority": 50,
+      "label": "EMV Runtime Kernel"
+    },
+    {
+      "id": "test.emv_purchase",
+      "transformation": "emv.test.purchase",
+      "version": "1.0.0",
+      "type": "test",
+      "stage": "test",
+      "inputs": [{"name": "emv_runtime", "kind": "artifact", "required": true}],
+      "outputs": [{"name": "test_report", "kind": "file", "required": true}],
+      "pure": true,
+      "deterministic": true,
+      "affects_opens": ["verification"],
+      "reads_opens": ["runtime"],
+      "witness": {"required": true, "format": "cvr-witness-v1"},
+      "depends_on": ["runtime.emv_kernel"],
+      "priority": 70,
+      "label": "EMV Purchase Test"
+    },
+    {
+      "id": "android.package",
+      "transformation": "android.assembleRelease",
+      "version": "1.0.0",
+      "type": "package",
+      "stage": "package",
+      "inputs": [
+        {"name": "emv_runtime", "kind": "artifact", "required": true},
+        {"name": "test_report", "kind": "file", "required": true}
+      ],
+      "outputs": [{"name": "apk", "kind": "artifact", "media_type": "application/vnd.android.package-archive", "required": true}],
+      "pure": true,
+      "deterministic": true,
+      "affects_opens": ["ops", "build"],
+      "reads_opens": ["runtime", "verification"],
+      "witness": {"required": true, "format": "cvr-witness-v1"},
+      "depends_on": ["test.emv_purchase"],
+      "priority": 100,
+      "label": "Package Release APK"
+    }
+  ]
+}

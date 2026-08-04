@@ -2,30 +2,60 @@ name: CVR Deterministic Build
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 jobs:
-  bootstrap:
+  certify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Write cvr-build placeholder
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Verify Repository
+        run: python tools/cvr.py verify-system
+
+      - name: Validate Constitution / Kernel / MIR / DAG
         run: |
-          mkdir -p .github/workflows
-          cat > .github/workflows/cvr-build.yml <<'EOF'
-          name: CVR Deterministic Build
-          on:
-            push:
-              branches: [main]
-            workflow_dispatch:
-          jobs:
-            build:
-              runs-on: ubuntu-latest
-              steps:
-                - uses: actions/checkout@v4
-                - name: CVR bootstrap
-                  run: echo "Bootstrap workflow placeholder"
-          EOF
-          echo "Placeholder workflow already written in repo."
+          python tools/cvr.py validate-constitution
+          python tools/cvr.py validate-kernel
+          python tools/cvr.py validate-mir
+          python tools/cvr.py validate-dag
+
+      - name: Execute Build DAG
+        run: |
+          python tools/cvr.py execute-dag \
+            --dag build/build_dag.json \
+            --require-witness \
+            --fail-on-obstruction
+
+      - name: Validate Witnesses
+        run: python tools/cvr.py validate-witnesses
+
+      - name: Replay All
+        run: python tools/cvr.py replay-all
+
+      - name: Consistency Check
+        run: python tools/cvr.py consistency-check
+
+      - name: Emit Repository Certificate
+        run: python tools/cvr.py emit-certificate
+
+      - name: Upload Certificate + Witnesses
+        uses: actions/upload-artifact@v4
+        with:
+          name: cvr-certified-${{ github.sha }}
+          path: |
+            certificates/
+            witness/
+            replay/
+            build/build_dag.json
