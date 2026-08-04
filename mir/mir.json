@@ -1,0 +1,357 @@
+{
+  "mir_id": "omega-cvr-mir-v1",
+  "version": "1.0.0",
+  "kernel_ref": "kernel/kernel.json",
+  "views": {
+    "logic": {
+      "nodes": [
+        {
+          "id": "logic.iso7816",
+          "kind": "operator",
+          "label": "ISO 7816 Operator Set",
+          "type": "protocol",
+          "hash": "sha256:placeholder-logic-iso7816"
+        },
+        {
+          "id": "logic.emv.commands",
+          "kind": "operator",
+          "label": "EMV Command Rules",
+          "type": "protocol",
+          "hash": "sha256:placeholder-logic-emv-commands"
+        },
+        {
+          "id": "logic.tlv.tags",
+          "kind": "operator",
+          "label": "TLV Tag Rules",
+          "type": "protocol",
+          "hash": "sha256:placeholder-logic-tlv-tags"
+        }
+      ]
+    },
+    "runtime": {
+      "nodes": [
+        {
+          "id": "runtime.virtual_card",
+          "kind": "card",
+          "label": "Virtual Smart Card",
+          "type": "emv-runtime",
+          "hash": "sha256:placeholder-runtime-virtual-card"
+        },
+        {
+          "id": "runtime.virtual_terminal",
+          "kind": "terminal",
+          "label": "Virtual Terminal",
+          "type": "emv-runtime",
+          "hash": "sha256:placeholder-runtime-virtual-terminal"
+        },
+        {
+          "id": "runtime.apdu_parser",
+          "kind": "parser",
+          "label": "APDU Parser",
+          "type": "iso7816",
+          "hash": "sha256:placeholder-runtime-apdu-parser"
+        },
+        {
+          "id": "runtime.tlv_parser",
+          "kind": "parser",
+          "label": "TLV Parser",
+          "type": "ber-tlv",
+          "hash": "sha256:placeholder-runtime-tlv-parser"
+        },
+        {
+          "id": "runtime.emv_kernel",
+          "kind": "state_machine",
+          "label": "EMV State Machine",
+          "type": "transaction-engine",
+          "hash": "sha256:placeholder-runtime-emv-kernel"
+        }
+      ]
+    },
+    "verification": {
+      "nodes": [
+        {
+          "id": "verification.witness",
+          "kind": "witness",
+          "label": "Witness Model",
+          "type": "certification",
+          "hash": "sha256:placeholder-verification-witness"
+        },
+        {
+          "id": "verification.replay",
+          "kind": "replay",
+          "label": "Replay Model",
+          "type": "certification",
+          "hash": "sha256:placeholder-verification-replay"
+        },
+        {
+          "id": "verification.consistency",
+          "kind": "consistency",
+          "label": "Sheaf Consistency",
+          "type": "certification",
+          "hash": "sha256:placeholder-verification-consistency"
+        }
+      ]
+    },
+    "build": {
+      "nodes": [
+        {
+          "id": "build.repo_generate",
+          "kind": "build_node",
+          "label": "Repository Generator",
+          "type": "generate",
+          "hash": "sha256:placeholder-build-repo-generate"
+        },
+        {
+          "id": "build.cvr_execute",
+          "kind": "build_node",
+          "label": "CVR Execute DAG",
+          "type": "execute",
+          "hash": "sha256:placeholder-build-cvr-execute"
+        }
+      ]
+    },
+    "proof": {
+      "nodes": [
+        {
+          "id": "proof.compiler_invariants",
+          "kind": "proof",
+          "label": "Compiler Invariants",
+          "type": "lean",
+          "hash": "sha256:placeholder-proof-compiler-invariants"
+        },
+        {
+          "id": "proof.runtime_replay",
+          "kind": "proof",
+          "label": "Runtime Replay Correctness",
+          "type": "lean",
+          "hash": "sha256:placeholder-proof-runtime-replay"
+        }
+      ]
+    },
+    "documentation": {
+      "nodes": [
+        {
+          "id": "docs.protocol_explorer",
+          "kind": "doc",
+          "label": "Protocol Explorer",
+          "type": "generated-doc",
+          "hash": "sha256:placeholder-docs-protocol-explorer"
+        }
+      ]
+    },
+    "operations": {
+      "nodes": [
+        {
+          "id": "ops.github_actions",
+          "kind": "ops",
+          "label": "GitHub Actions",
+          "type": "ci",
+          "hash": "sha256:placeholder-ops-github-actions"
+        },
+        {
+          "id": "ops.vscode_tasks",
+          "kind": "ops",
+          "label": "VS Code Tasks",
+          "type": "local-dev",
+          "hash": "sha256:placeholder-ops-vscode-tasks"
+        }
+      ]
+    }
+  },
+  "edges": [
+    {
+      "from": "logic.iso7816",
+      "to": "runtime.apdu_parser",
+      "kind": "projects_to"
+    },
+    {
+      "from": "logic.emv.commands",
+      "to": "runtime.emv_kernel",
+      "kind": "projects_to"
+    },
+    {
+      "from": "logic.tlv.tags",
+      "to": "runtime.tlv_parser",
+      "kind": "projects_to"
+    },
+    {
+      "from": "runtime.apdu_parser",
+      "to": "runtime.virtual_card",
+      "kind": "transforms"
+    },
+    {
+      "from": "runtime.virtual_card",
+      "to": "runtime.virtual_terminal",
+      "kind": "transforms"
+    },
+    {
+      "from": "runtime.virtual_terminal",
+      "to": "runtime.emv_kernel",
+      "kind": "transitions_to"
+    },
+    {
+      "from": "runtime.emv_kernel",
+      "to": "verification.witness",
+      "kind": "witnesses"
+    },
+    {
+      "from": "verification.witness",
+      "to": "verification.replay",
+      "kind": "replays_to"
+    },
+    {
+      "from": "verification.replay",
+      "to": "verification.consistency",
+      "kind": "checks_consistency"
+    },
+    {
+      "from": "build.repo_generate",
+      "to": "ops.github_actions",
+      "kind": "projects_to"
+    },
+    {
+      "from": "build.repo_generate",
+      "to": "ops.vscode_tasks",
+      "kind": "projects_to"
+    },
+    {
+      "from": "runtime.emv_kernel",
+      "to": "docs.protocol_explorer",
+      "kind": "documents"
+    },
+    {
+      "from": "proof.compiler_invariants",
+      "to": "verification.consistency",
+      "kind": "proves"
+    },
+    {
+      "from": "proof.runtime_replay",
+      "to": "verification.replay",
+      "kind": "proves"
+    }
+  ],
+  "sheaf_covers": [
+    ["logic.iso7816", "runtime.apdu_parser", "verification.witness"],
+    ["logic.emv.commands", "runtime.emv_kernel", "verification.replay"],
+    ["logic.tlv.tags", "runtime.tlv_parser", "docs.protocol_explorer"],
+    ["runtime.virtual_card", "runtime.virtual_terminal", "verification.consistency"]
+  ],
+  "emv": {
+    "apdu_commands": [
+      {
+        "name": "SELECT",
+        "cla": "00",
+        "ins": "A4",
+        "stage": "application-selection",
+        "hash": "sha256:placeholder-apdu-select"
+      },
+      {
+        "name": "GET_PROCESSING_OPTIONS",
+        "cla": "80",
+        "ins": "A8",
+        "stage": "gpo",
+        "hash": "sha256:placeholder-apdu-gpo"
+      },
+      {
+        "name": "READ_RECORD",
+        "cla": "00",
+        "ins": "B2",
+        "stage": "record-read",
+        "hash": "sha256:placeholder-apdu-read-record"
+      },
+      {
+        "name": "GENERATE_AC",
+        "cla": "80",
+        "ins": "AE",
+        "stage": "transaction-complete",
+        "hash": "sha256:placeholder-apdu-generate-ac"
+      }
+    ],
+    "tlv_tags": [
+      {
+        "tag": "6F",
+        "meaning": "FCI Template",
+        "hash": "sha256:placeholder-tlv-6f"
+      },
+      {
+        "tag": "84",
+        "meaning": "DF Name",
+        "hash": "sha256:placeholder-tlv-84"
+      },
+      {
+        "tag": "A5",
+        "meaning": "FCI Proprietary Template",
+        "hash": "sha256:placeholder-tlv-a5"
+      },
+      {
+        "tag": "82",
+        "meaning": "Application Interchange Profile",
+        "hash": "sha256:placeholder-tlv-82"
+      },
+      {
+        "tag": "94",
+        "meaning": "Application File Locator",
+        "hash": "sha256:placeholder-tlv-94"
+      },
+      {
+        "tag": "9F26",
+        "meaning": "Application Cryptogram",
+        "hash": "sha256:placeholder-tlv-9f26"
+      },
+      {
+        "tag": "9F36",
+        "meaning": "Application Transaction Counter",
+        "hash": "sha256:placeholder-tlv-9f36"
+      }
+    ],
+    "states": [
+      {
+        "name": "Idle",
+        "allowed_commands": [],
+        "next": ["CardInserted"],
+        "hash": "sha256:placeholder-state-idle"
+      },
+      {
+        "name": "CardInserted",
+        "allowed_commands": ["SELECT"],
+        "next": ["ApplicationSelected"],
+        "hash": "sha256:placeholder-state-card-inserted"
+      },
+      {
+        "name": "ApplicationSelected",
+        "allowed_commands": ["GET_PROCESSING_OPTIONS"],
+        "next": ["ProcessingOptionsRead"],
+        "hash": "sha256:placeholder-state-app-selected"
+      },
+      {
+        "name": "ProcessingOptionsRead",
+        "allowed_commands": ["READ_RECORD"],
+        "next": ["RecordsRead"],
+        "hash": "sha256:placeholder-state-gpo-read"
+      },
+      {
+        "name": "RecordsRead",
+        "allowed_commands": ["GENERATE_AC"],
+        "next": ["Complete"],
+        "hash": "sha256:placeholder-state-records-read"
+      },
+      {
+        "name": "Complete",
+        "allowed_commands": [],
+        "next": [],
+        "hash": "sha256:placeholder-state-complete"
+      }
+    ],
+    "transaction": {
+      "name": "Minimal EMV Flow",
+      "ordered_steps": [
+        "SELECT",
+        "GET_PROCESSING_OPTIONS",
+        "READ_RECORD",
+        "GENERATE_AC"
+      ],
+      "hash": "sha256:placeholder-transaction-flow"
+    }
+  },
+  "hash": "sha256:placeholder-mir-instance"
+}
