@@ -1,0 +1,22 @@
+{
+  "kernel_id": "omega-cvr-kernel",
+  "version": "1.0.0",
+  "constitution_version": "1.0.0",
+  "runtime_profile": "emv-iso7816",
+  "mir_version": "1.0.0",
+  "dag_version": "1.0.0",
+  "hash_algorithm": "sha256",
+  "deterministic": true,
+  "pure_execution": true,
+  "witness_required": true,
+  "replay_required": true,
+  "consistency_required": true,
+  "artifact_hashing": true,
+  "environment": {
+    "java": "21",
+    "python": "3.12",
+    "android_sdk": "pinned",
+    "gradle": "pinned"
+  },
+  "profiles": ["iso7816","emv"]
+}
