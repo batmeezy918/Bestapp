@@ -1,0 +1,39 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CVR: Verify Repository",
+      "type": "shell",
+      "command": "python",
+      "args": ["tools/cvr.py", "verify-system"],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "CVR: Execute DAG",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "tools/cvr.py",
+        "execute-dag",
+        "--dag",
+        "build/build_dag.json",
+        "--require-witness",
+        "--fail-on-obstruction"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "CVR: Full Certification",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "CVR: Verify Repository",
+        "CVR: Execute DAG"
+      ]
+    }
+  ]
+}
