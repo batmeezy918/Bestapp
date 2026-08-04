@@ -1,0 +1,107 @@
+{
+  "constitution_id": "cvr-emv-constitution-v1",
+  "version": "1.0.0",
+  "scope": "CVR EMV deterministic runtime and build system",
+  "laws": [
+    {
+      "id": "law.determinism",
+      "expression": "every transformation is pure and deterministic",
+      "severity": "error"
+    },
+    {
+      "id": "law.hash-stability",
+      "expression": "identical inputs under identical kernel and environment produce identical hashes",
+      "severity": "error"
+    },
+    {
+      "id": "law.witness-required",
+      "expression": "every executed node emits a witness",
+      "severity": "error"
+    },
+    {
+      "id": "law.replay-required",
+      "expression": "every witness must support replay",
+      "severity": "error"
+    },
+    {
+      "id": "law.consistency-required",
+      "expression": "runtime, proof, docs, and build views must agree on overlaps",
+      "severity": "error"
+    }
+  ],
+  "operators": [
+    {
+      "id": "op.parse-constitution",
+      "name": "parse constitution"
+    },
+    {
+      "id": "op.materialize-kernel",
+      "name": "materialize kernel"
+    },
+    {
+      "id": "op.generate-mir",
+      "name": "generate mir"
+    },
+    {
+      "id": "op.execute-dag",
+      "name": "execute dag"
+    },
+    {
+      "id": "op.verify-replay",
+      "name": "verify replay"
+    },
+    {
+      "id": "op.check-consistency",
+      "name": "check consistency"
+    }
+  ],
+  "invariants": [
+    {
+      "id": "inv.no-implicit-state",
+      "expression": "no hidden mutable state is permitted",
+      "severity": "error"
+    },
+    {
+      "id": "inv.canonical-ordering",
+      "expression": "collections are serialized in canonical order",
+      "severity": "error"
+    },
+    {
+      "id": "inv.traceability",
+      "expression": "every artifact maps back to a source constitutional object",
+      "severity": "error"
+    }
+  ],
+  "hash_policy": {
+    "algorithm": "sha256",
+    "canonicalization": "utf-8-json-stable-sort",
+    "content_addressed": true
+  },
+  "witness_policy": {
+    "required": true,
+    "format": "cvr-witness-v1"
+  },
+  "replay_policy": {
+    "required": true,
+    "format": "cvr-replay-v1"
+  },
+  "artifact_policy": {
+    "signed": false,
+    "generated_files_only": true,
+    "manual_edits_to_generated_files": false
+  },
+  "profiles": {
+    "emv": {
+      "enabled": true,
+      "operators": [
+        "emv.apdu.parse",
+        "emv.tlv.parse",
+        "emv.virtual_card.execute",
+        "emv.virtual_terminal.execute",
+        "emv.state.transition",
+        "emv.witness.record",
+        "emv.replay.verify"
+      ]
+    }
+  }
+}
