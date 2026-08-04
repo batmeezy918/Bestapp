@@ -1,107 +1,75 @@
 {
-  "constitution_id": "cvr-emv-constitution-v1",
+  "constitution_id": "omega-cvr-constitution",
   "version": "1.0.0",
-  "scope": "CVR EMV deterministic runtime and build system",
-  "laws": [
-    {
-      "id": "law.determinism",
-      "expression": "every transformation is pure and deterministic",
-      "severity": "error"
-    },
-    {
-      "id": "law.hash-stability",
-      "expression": "identical inputs under identical kernel and environment produce identical hashes",
-      "severity": "error"
-    },
-    {
-      "id": "law.witness-required",
-      "expression": "every executed node emits a witness",
-      "severity": "error"
-    },
-    {
-      "id": "law.replay-required",
-      "expression": "every witness must support replay",
-      "severity": "error"
-    },
-    {
-      "id": "law.consistency-required",
-      "expression": "runtime, proof, docs, and build views must agree on overlaps",
-      "severity": "error"
-    }
-  ],
-  "operators": [
-    {
-      "id": "op.parse-constitution",
-      "name": "parse constitution"
-    },
-    {
-      "id": "op.materialize-kernel",
-      "name": "materialize kernel"
-    },
-    {
-      "id": "op.generate-mir",
-      "name": "generate mir"
-    },
-    {
-      "id": "op.execute-dag",
-      "name": "execute dag"
-    },
-    {
-      "id": "op.verify-replay",
-      "name": "verify replay"
-    },
-    {
-      "id": "op.check-consistency",
-      "name": "check consistency"
-    }
+  "title": "CVR Constitution – EMV / ISO 7816 Profile",
+  "runtime_profile": "emv-iso7816",
+  "hash_algorithm": "sha256",
+  "principles": [
+    "Single source of truth: the Constitution",
+    "All artifacts are pure deterministic projections of the Kernel",
+    "Every transformation is witnessed and replayable",
+    "Multi-view consistency is enforced by discrete sheaf cohomology (H¹ = 0)",
+    "No handwritten configuration outside constitution/"
   ],
   "invariants": [
-    {
-      "id": "inv.no-implicit-state",
-      "expression": "no hidden mutable state is permitted",
-      "severity": "error"
-    },
-    {
-      "id": "inv.canonical-ordering",
-      "expression": "collections are serialized in canonical order",
-      "severity": "error"
-    },
-    {
-      "id": "inv.traceability",
-      "expression": "every artifact maps back to a source constitutional object",
-      "severity": "error"
-    }
+    "deterministic_execution",
+    "pure_transformations",
+    "witness_completeness",
+    "replay_identity",
+    "artifact_hash_stability",
+    "sheaf_consistency"
   ],
-  "hash_policy": {
-    "algorithm": "sha256",
-    "canonicalization": "utf-8-json-stable-sort",
-    "content_addressed": true
-  },
-  "witness_policy": {
-    "required": true,
-    "format": "cvr-witness-v1"
-  },
-  "replay_policy": {
-    "required": true,
-    "format": "cvr-replay-v1"
-  },
-  "artifact_policy": {
-    "signed": false,
-    "generated_files_only": true,
-    "manual_edits_to_generated_files": false
+  "admissibility": {
+    "operators_must_be_pure": true,
+    "operators_must_be_deterministic": true,
+    "every_node_requires_witness": true,
+    "every_node_must_support_replay": true
   },
   "profiles": {
+    "iso7816": {
+      "description": "Base ISO/IEC 7816 smart-card command set",
+      "required": true
+    },
     "emv": {
-      "enabled": true,
-      "operators": [
-        "emv.apdu.parse",
-        "emv.tlv.parse",
-        "emv.virtual_card.execute",
-        "emv.virtual_terminal.execute",
-        "emv.state.transition",
-        "emv.witness.record",
-        "emv.replay.verify"
-      ]
+      "description": "EMV contact chip transaction flow",
+      "required": true,
+      "depends_on": ["iso7816"]
     }
+  },
+  "operators": [
+    {
+      "id": "iso7816.select",
+      "name": "SELECT",
+      "cla": "00",
+      "ins": "A4",
+      "description": "Select file or application"
+    },
+    {
+      "id": "iso7816.read_record",
+      "name": "READ RECORD",
+      "cla": "00",
+      "ins": "B2",
+      "description": "Read a record from a linear or cyclic file"
+    },
+    {
+      "id": "iso7816.get_processing_options",
+      "name": "GET PROCESSING OPTIONS",
+      "cla": "80",
+      "ins": "A8",
+      "description": "EMV Get Processing Options"
+    },
+    {
+      "id": "iso7816.generate_ac",
+      "name": "GENERATE AC",
+      "cla": "80",
+      "ins": "AE",
+      "description": "EMV Generate Application Cryptogram"
+    }
+  ],
+  "environment": {
+    "java": "21",
+    "python": "3.12",
+    "android_sdk": "pinned",
+    "gradle": "pinned"
   }
 }

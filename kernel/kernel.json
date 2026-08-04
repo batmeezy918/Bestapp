@@ -18,5 +18,5 @@
     "android_sdk": "pinned",
     "gradle": "pinned"
   },
-  "profiles": ["iso7816","emv"]
+  "profiles": ["iso7816", "emv"]
 }
